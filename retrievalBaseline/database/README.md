@@ -187,16 +187,112 @@ python upload_database.py \
 - Create collections and insert vectors using our scripts in this repo (see sections above).
 - Learn advanced features (partitions, indexes, query tuning, backup) in the official docs: https://milvus.io/docs
 
+## 5. OCR Text Extraction & Indexing
+
+**Scripts:** `get_ocr.py` and `upload_ocr_database.py`
+
+This pipeline extracts text from video frames using OCR (Optical Character Recognition) and indexes the text embeddings into Milvus, similar to the keyframe pipeline.
+
+### Features
+
+* Supports **EasyOCR** and **PaddleOCR** libraries
+* Extracts text from video frames with configurable frame skipping
+* Filters text by confidence and minimum length
+* Stores OCR text + embeddings in Milvus for text-based retrieval
+
+### Usage
+
+#### Step 1: Extract OCR from Videos
+
+```bash
+python get_ocr.py \
+  --input-folder /path/to/videos \
+  --output-base ./output-ocr \
+  --skip-frames 5 \
+  --lang en \
+  --min-confidence 0.5
+```
+
+**Key Arguments:**
+* `--input-folder`: Root folder containing videos
+* `--output-base`: Where OCR data will be stored
+* `--skip-frames`: Process every (skip_frames + 1)-th frame
+* `--lang`: OCR language codes (e.g., `en`, `vi`, `en vi` for multiple)
+* `--min-confidence`: Minimum OCR confidence threshold (0.0-1.0)
+* `--min-text-length`: Minimum text length to keep
+
+**Output Structure:**
+```
+output-ocr/
+  ├── maps/
+  │   └── video1_ocr_map.csv
+  ├── video1/
+  │   └── ocr_data/
+  │       └── video1_ocr.json
+  └── video2/
+      └── ocr_data/...
+```
+
+#### Step 2: Upload OCR Embeddings to Milvus
+
+```bash
+python upload_ocr_database.py \
+  --root ./output-ocr \
+  --collection-name OCR_collection \
+  --recreate \
+  --build-index
+```
+
+**Key Arguments:**
+* `--root`: Root folder containing OCR JSON files
+* `--collection-name`: Milvus collection name for OCR data
+* `--recreate`: Drop and recreate the collection if it exists
+* `--build-index`: Build HNSW index after insertions
+* `--batch-size`: Number of texts per encoding batch (default: 32)
+
+**Milvus Schema:**
+* `id`: Primary key (INT64)
+* `filepath`: Path to OCR JSON file
+* `embedding`: Text embedding vector (from OpenCLIP text encoder)
+* `video_id`: Parent video folder
+* `frame_id`: Frame index in original video
+* `ocr_text`: Extracted text content (VARCHAR, max 2048 chars)
+
+### OCR Library Installation
+
+Choose one:
+
+**EasyOCR (recommended for simplicity):**
+```bash
+pip install easyocr
+```
+
+**PaddleOCR (alternative):**
+```bash
+pip install paddlepaddle paddleocr
+```
+
+The script will automatically detect which library is installed.
+
+---
+
 ## Requirements
 
 * Python 3.9+
 * CUDA-enabled GPU(s) recommended for speed
 * Libraries: `torch`, `open_clip_torch`, `tqdm`, `pymilvus`, `PIL`, `opencv-python`
+* OCR library: `easyocr` OR `paddleocr`
 
 Install dependencies:
 
 ```bash
+# Core dependencies
 pip install torch torchvision tqdm opencv-python pillow pymilvus open_clip_torch
+
+# OCR (choose one)
+pip install easyocr
+# OR
+pip install paddlepaddle paddleocr
 ```
 
 ---
@@ -205,4 +301,6 @@ pip install torch torchvision tqdm opencv-python pillow pymilvus open_clip_torch
 
 * You can extract **compact sets of representative frames** from large video datasets.
 * Store them in **Milvus** for fast semantic search and retrieval.
+* You can extract **OCR text from video frames** and index them for text-based retrieval.
+* Both keyframes and OCR text can be queried separately or combined for hybrid search.
 
